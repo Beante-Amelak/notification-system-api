@@ -1,0 +1,223 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mule xmlns="http://www.mulesoft.org/schema/mule/core"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xmlns:munit="http://www.mulesoft.org/schema/mule/munit"
+      xmlns:munit-tools="http://www.mulesoft.org/schema/mule/munit-tools"
+      xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+      xmlns:http="http://www.mulesoft.org/schema/mule/http"
+      xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+      xsi:schemaLocation="
+        http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+        http://www.mulesoft.org/schema/mule/munit http://www.mulesoft.org/schema/mule/munit/current/mule-munit.xsd
+        http://www.mulesoft.org/schema/mule/munit-tools http://www.mulesoft.org/schema/mule/munit-tools/current/mule-munit-tools.xsd
+        http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+        http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+
+    <munit:config name="notification-success-test.xml"/>
+
+    <!-- =========================================================
+         Test: Notification Success - Document Generation + Notification
+         Verifies successful notification with document generation
+         ========================================================= -->
+    <munit:test name="notification-success-with-document-test" 
+                description="Test successful notification with document generation - HTTP 201">
+        
+        <!-- Behavior: Setup mocks for external services -->
+        <munit:behavior>
+            
+            <!-- Mock Document Generation Service -->
+            <munit-tools:mock-when doc:name="Mock Document Service" processor="http:request">
+                <munit-tools:with-attributes>
+                    <munit-tools:with-attribute whereValue="Call Document Service" attributeName="doc:name"/>
+                </munit-tools:with-attributes>
+                <munit-tools:then-return>
+                    <munit-tools:payload value="#[MunitTools::getResourceAsString('sample-data/document-service-response.json')]" mediaType="application/json" encoding="UTF-8"/>
+                    <munit-tools:attributes value="#[{statusCode: 200}]"/>
+                </munit-tools:then-return>
+            </munit-tools:mock-when>
+            
+            <!-- Mock Notification Service -->
+            <munit-tools:mock-when doc:name="Mock Notification Service" processor="http:request">
+                <munit-tools:with-attributes>
+                    <munit-tools:with-attribute whereValue="Call Notification Service" attributeName="doc:name"/>
+                </munit-tools:with-attributes>
+                <munit-tools:then-return>
+                    <munit-tools:payload value="#[MunitTools::getResourceAsString('sample-data/notification-service-response.json')]" mediaType="application/json" encoding="UTF-8"/>
+                    <munit-tools:attributes value="#[{statusCode: 200}]"/>
+                </munit-tools:then-return>
+            </munit-tools:mock-when>
+            
+        </munit:behavior>
+        
+        <!-- Execution: Set event and call flow -->
+        <munit:execution>
+            
+            <!-- Set input event with valid request -->
+            <munit:set-event doc:name="Set Valid Notification Request">
+                <munit:payload value="#[MunitTools::getResourceAsString('sample-data/notification-request.json')]" mediaType="application/json" encoding="UTF-8"/>
+                <munit:attributes value="#[{
+                    headers: {
+                        'client_id': p('secure::api.clientId'),
+                        'client_secret': p('secure::api.clientSecret'),
+                        'content-type': 'application/json'
+                    },
+                    method: 'POST',
+                    requestPath: '/api/v1/notifications'
+                }]"/>
+                <munit:variables>
+                    <munit:variable key="correlationId" value="#[uuid()]"/>
+                </munit:variables>
+            </munit:set-event>
+            
+            <!-- Call the implementation flow -->
+            <flow-ref doc:name="Call POST Notifications Flow" name="post:\notifications:application\json:notification-system-api-config"/>
+            
+        </munit:execution>
+        
+        <!-- Validation: Assert response -->
+        <munit:validation>
+            
+            <!-- Assert HTTP Status is 201 -->
+            <munit-tools:assert-that doc:name="Assert HTTP Status 201" 
+                                     expression="#[vars.httpStatus]" 
+                                     is="#[MunitTools::equalTo(201)]" 
+                                     message="Expected HTTP status 201"/>
+            
+            <!-- Assert response contains notificationId -->
+            <munit-tools:assert-that doc:name="Assert notificationId present" 
+                                     expression="#[payload.notificationId]" 
+                                     is="#[MunitTools::notNullValue()]" 
+                                     message="notificationId should be present"/>
+            
+            <!-- Assert response contains policyId -->
+            <munit-tools:assert-that doc:name="Assert policyId matches" 
+                                     expression="#[payload.policyId]" 
+                                     is="#[MunitTools::equalTo('POL-998877')]" 
+                                     message="policyId should match request"/>
+            
+            <!-- Assert status is SENT -->
+            <munit-tools:assert-that doc:name="Assert status is SENT" 
+                                     expression="#[payload.status]" 
+                                     is="#[MunitTools::equalTo('SENT')]" 
+                                     message="Status should be SENT"/>
+            
+            <!-- Assert message indicates document was sent -->
+            <munit-tools:assert-that doc:name="Assert message contains documents" 
+                                     expression="#[payload.message]" 
+                                     is="#[MunitTools::containsString('documents')]" 
+                                     message="Message should mention documents"/>
+            
+            <!-- Verify Document Service was called -->
+            <munit-tools:verify-call doc:name="Verify Document Service Called" processor="http:request" times="1">
+                <munit-tools:with-attributes>
+                    <munit-tools:with-attribute whereValue="Call Document Service" attributeName="doc:name"/>
+                </munit-tools:with-attributes>
+            </munit-tools:verify-call>
+            
+            <!-- Verify Notification Service was called -->
+            <munit-tools:verify-call doc:name="Verify Notification Service Called" processor="http:request" times="1">
+                <munit-tools:with-attributes>
+                    <munit-tools:with-attribute whereValue="Call Notification Service" attributeName="doc:name"/>
+                </munit-tools:with-attributes>
+            </munit-tools:verify-call>
+            
+        </munit:validation>
+        
+    </munit:test>
+
+    <!-- =========================================================
+         Test: Notification Success - Without Document Generation
+         Verifies successful notification when generateDocument is false
+         ========================================================= -->
+    <munit:test name="notification-success-without-document-test" 
+                description="Test successful notification without document generation - HTTP 201">
+        
+        <!-- Behavior: Setup mocks -->
+        <munit:behavior>
+            
+            <!-- Mock Notification Service only (no document service call expected) -->
+            <munit-tools:mock-when doc:name="Mock Notification Service" processor="http:request">
+                <munit-tools:with-attributes>
+                    <munit-tools:with-attribute whereValue="Call Notification Service" attributeName="doc:name"/>
+                </munit-tools:with-attributes>
+                <munit-tools:then-return>
+                    <munit-tools:payload value="#[MunitTools::getResourceAsString('sample-data/notification-service-response.json')]" mediaType="application/json" encoding="UTF-8"/>
+                    <munit-tools:attributes value="#[{statusCode: 200}]"/>
+                </munit-tools:then-return>
+            </munit-tools:mock-when>
+            
+        </munit:behavior>
+        
+        <!-- Execution -->
+        <munit:execution>
+            
+            <!-- Set input event with generateDocument = false -->
+            <munit:set-event doc:name="Set Notification Request Without Document">
+                <munit:payload value='#[output application/json --- {
+                    "policyId": "POL-998877",
+                    "recipient": {
+                        "email": "customer@email.com",
+                        "phone": "+15551234567"
+                    },
+                    "notificationType": "PAYMENT_CONFIRMED",
+                    "generateDocument": false
+                }]' mediaType="application/json" encoding="UTF-8"/>
+                <munit:attributes value="#[{
+                    headers: {
+                        'client_id': p('secure::api.clientId'),
+                        'client_secret': p('secure::api.clientSecret'),
+                        'content-type': 'application/json'
+                    },
+                    method: 'POST',
+                    requestPath: '/api/v1/notifications'
+                }]"/>
+                <munit:variables>
+                    <munit:variable key="correlationId" value="#[uuid()]"/>
+                </munit:variables>
+            </munit:set-event>
+            
+            <!-- Call the implementation flow -->
+            <flow-ref doc:name="Call POST Notifications Flow" name="post:\notifications:application\json:notification-system-api-config"/>
+            
+        </munit:execution>
+        
+        <!-- Validation -->
+        <munit:validation>
+            
+            <!-- Assert HTTP Status is 201 -->
+            <munit-tools:assert-that doc:name="Assert HTTP Status 201" 
+                                     expression="#[vars.httpStatus]" 
+                                     is="#[MunitTools::equalTo(201)]" 
+                                     message="Expected HTTP status 201"/>
+            
+            <!-- Assert status is SENT -->
+            <munit-tools:assert-that doc:name="Assert status is SENT" 
+                                     expression="#[payload.status]" 
+                                     is="#[MunitTools::equalTo('SENT')]" 
+                                     message="Status should be SENT"/>
+            
+            <!-- Assert message does NOT mention documents -->
+            <munit-tools:assert-that doc:name="Assert message without documents" 
+                                     expression="#[payload.message]" 
+                                     is="#[MunitTools::equalTo('Notification sent successfully')]" 
+                                     message="Message should not mention documents"/>
+            
+            <!-- Verify Document Service was NOT called -->
+            <munit-tools:verify-call doc:name="Verify Document Service Not Called" processor="http:request" times="0">
+                <munit-tools:with-attributes>
+                    <munit-tools:with-attribute whereValue="Call Document Service" attributeName="doc:name"/>
+                </munit-tools:with-attributes>
+            </munit-tools:verify-call>
+            
+            <!-- Verify Notification Service was called -->
+            <munit-tools:verify-call doc:name="Verify Notification Service Called" processor="http:request" times="1">
+                <munit-tools:with-attributes>
+                    <munit-tools:with-attribute whereValue="Call Notification Service" attributeName="doc:name"/>
+                </munit-tools:with-attributes>
+            </munit-tools:verify-call>
+            
+        </munit:validation>
+        
+    </munit:test>
+
+</mule>

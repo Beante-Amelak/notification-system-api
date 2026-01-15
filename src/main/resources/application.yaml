@@ -1,0 +1,34 @@
+# Lula Insurance - Notification & Document System API Configuration
+# Non-sensitive application properties
+
+# HTTP Listener Configuration
+http:
+  listener:
+    host: "0.0.0.0"
+    port: "8081"
+    basePath: "/api/v1"
+
+# API Configuration
+api:
+  name: "lula-notification-system-api"
+  version: "v1"
+
+# Timeouts (in milliseconds)
+timeouts:
+  default: "30000"
+  documentService: "60000"
+  notificationService: "30000"
+
+# Feature Flags
+features:
+  documentGeneration:
+    enabled: "true"
+  smsNotification:
+    enabled: "true"
+  emailNotification:
+    enabled: "true"
+
+# Logging Configuration
+logging:
+  category: "com.lulainsurance.notification"
+  level: "INFO"

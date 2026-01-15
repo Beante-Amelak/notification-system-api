@@ -1,0 +1,21 @@
+# Lula Insurance - Notification & Document System API Secure Configuration
+# Encrypted sensitive properties - Use secure.key VM argument to decrypt
+
+# Client ID Enforcement Credentials
+api:
+  clientId: "![eFvkhW04MnnFg6e/qiJeheCLcB15jSHW9W0V+tULUGc=]"
+  clientSecret: "![LK3Ygu91ITLaZYK/WnUEvjA5bH9ZgB7WgK8k3S98nBNc2GmP8m+23sLFm3qNfNdv]"
+
+# Document Generation Service
+documentService:
+  host: "document-service.lulainsurance.com"
+  port: "443"
+  basePath: "/api/v1/documents"
+  apiKey: "![gGet+bvy4vIAUMYwS+whQGX3aucwwfOinYDXiyGR+EFf+0gGEyzJkfLOHRYjhXGv]"
+
+# Notification Service (Email/SMS)
+notificationService:
+  host: "notification-service.lulainsurance.com"
+  port: "443"
+  basePath: "/api/v1/notifications"
+  apiKey: "![WUvXlpdIK0OG1cpxdIYt9ClGf8YGLcRj3yp5tb9eiPIYdBCOOU8iOts/7c1eGYs3]"

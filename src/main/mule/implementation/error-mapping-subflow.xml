@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mule xmlns="http://www.mulesoft.org/schema/mule/core"
+      xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+      xsi:schemaLocation="
+        http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+        http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+
+    <!-- =========================================================
+         Error Mapping Subflow
+         Converts Mule and downstream errors into ErrorResponse
+         ========================================================= -->
+    <sub-flow name="error-mapping-subflow" doc:name="Error Mapping Subflow">
+        
+        <!-- Transform error to ErrorResponse format -->
+        <ee:transform doc:name="Transform - Error Response">
+            <ee:message>
+                <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+
+var errorMapping = {
+    "APP:VALIDATION_ERROR": { code: "VALIDATION_ERROR", status: 400 },
+    "APP:UNAUTHORIZED": { code: "UNAUTHORIZED", status: 401 },
+    "APP:DOCUMENT_SERVICE_ERROR": { code: "DOCUMENT_SERVICE_ERROR", status: 500 },
+    "APP:NOTIFICATION_SERVICE_ERROR": { code: "NOTIFICATION_SERVICE_ERROR", status: 500 },
+    "HTTP:CONNECTIVITY": { code: "DOWNSTREAM_SERVICE_ERROR", status: 500 },
+    "HTTP:TIMEOUT": { code: "DOWNSTREAM_SERVICE_ERROR", status: 500 },
+    "APIKIT:BAD_REQUEST": { code: "BAD_REQUEST", status: 400 }
+}
+
+var errorType = error.errorType.identifier default "UNKNOWN"
+var mappedError = errorMapping[errorType] default { code: "INTERNAL_SERVER_ERROR", status: 500 }
+---
+{
+    errorCode: mappedError.code,
+    errorMessage: error.description default "An unexpected error occurred",
+    correlationId: vars.correlationId default correlationId
+}]]></ee:set-payload>
+            </ee:message>
+            <ee:variables>
+                <ee:set-variable variableName="httpStatus"><![CDATA[%dw 2.0
+output application/java
+
+var errorMapping = {
+    "APP:VALIDATION_ERROR": 400,
+    "APP:UNAUTHORIZED": 401,
+    "APP:DOCUMENT_SERVICE_ERROR": 500,
+    "APP:NOTIFICATION_SERVICE_ERROR": 500,
+    "HTTP:CONNECTIVITY": 500,
+    "HTTP:TIMEOUT": 500,
+    "APIKIT:BAD_REQUEST": 400
+}
+
+var errorType = error.errorType.identifier default "UNKNOWN"
+---
+errorMapping[errorType] default 500]]></ee:set-variable>
+            </ee:variables>
+        </ee:transform>
+        
+        <logger level="ERROR" 
+                doc:name="Log Error Mapped" 
+                message='#["[" ++ (vars.correlationId default correlationId) ++ "] Error mapped: " ++ payload.errorCode ++ " - " ++ payload.errorMessage]' 
+                category="${logging.category}"/>
+        
+    </sub-flow>
+
+</mule>

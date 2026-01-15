@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mule xmlns="http://www.mulesoft.org/schema/mule/core"
+      xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xmlns:http="http://www.mulesoft.org/schema/mule/http"
+      xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+      xmlns:apikit="http://www.mulesoft.org/schema/mule/mule-apikit"
+      xsi:schemaLocation="
+        http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+        http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+        http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+        http://www.mulesoft.org/schema/mule/mule-apikit http://www.mulesoft.org/schema/mule/mule-apikit/current/mule-apikit.xsd">
+
+    <!-- =========================================================
+         Main API Flow - Entry Point with APIKit Router
+         ========================================================= -->
+    <flow name="notification-system-api-main" doc:name="Notification System API Main Flow">
+        <http:listener doc:name="HTTP Listener" 
+                       config-ref="HTTP_Listener_Config" 
+                       path="${http.listener.basePath}/*">
+            <http:response statusCode="#[vars.httpStatus default 200]">
+                <http:headers><![CDATA[#[vars.outboundHeaders default {}]]]></http:headers>
+            </http:response>
+            <http:error-response statusCode="#[vars.httpStatus default 500]">
+                <http:headers><![CDATA[#[vars.outboundHeaders default {}]]]></http:headers>
+            </http:error-response>
+        </http:listener>
+        
+        <!-- Set Correlation ID for request tracking -->
+        <set-variable doc:name="Set Correlation ID" 
+                      variableName="correlationId" 
+                      value="#[correlationId]"/>
+        
+        <!-- Entry Logging -->
+        <logger level="INFO" 
+                doc:name="Log Request Entry" 
+                message='#["[" ++ vars.correlationId ++ "] Request received: " ++ attributes.method ++ " " ++ attributes.requestPath]' 
+                category="${logging.category}"/>
+        
+        <!-- APIKit Router -->
+        <apikit:router doc:name="APIKit Router" config-ref="notification-system-api-config"/>
+        
+        <!-- Exit Logging -->
+        <logger level="INFO" 
+                doc:name="Log Request Exit" 
+                message='#["[" ++ vars.correlationId ++ "] Request completed with status: " ++ (vars.httpStatus default 200)]' 
+                category="${logging.category}"/>
+        
+        <!-- Global Error Handler Reference -->
+        <error-handler ref="global-error-handler"/>
+    </flow>
+
+    <!-- =========================================================
+         APIKit Console Flow
+         ========================================================= -->
+
+    <!-- =========================================================
+         POST /notifications Implementation Flow
+         ========================================================= -->
+    <flow name="post:\notifications:application\json:notification-system-api-config" doc:name="POST /notifications">
+        
+        <!-- Store original request -->
+        <set-variable doc:name="Store Original Request" 
+                      variableName="originalRequest" 
+                      value="#[payload]"/>
+        
+        <!-- Client ID Enforcement -->
+        <choice doc:name="Validate Client Credentials">
+            <when expression="#[(attributes.headers['client_id'] == p('secure::api.clientId')) and (attributes.headers['client_secret'] == p('secure::api.clientSecret'))]">
+                <logger level="DEBUG" 
+                        doc:name="Log Auth Success" 
+                        message='#["[" ++ vars.correlationId ++ "] Client authentication successful"]' 
+                        category="${logging.category}"/>
+            </when>
+            <otherwise>
+                <raise-error doc:name="Raise Unauthorized Error" 
+                             type="APP:UNAUTHORIZED" 
+                             description="Invalid client_id or client_secret"/>
+            </otherwise>
+        </choice>
+        
+        <!-- Request Validation -->
+        <flow-ref doc:name="Validate Request" name="request-validation-subflow"/>
+        
+        <!-- Document Generation (if enabled and requested) -->
+        <choice doc:name="Check Document Generation">
+            <when expression="#[(p('features.documentGeneration.enabled') == 'true') and (vars.originalRequest.generateDocument default true)]">
+                <flow-ref doc:name="Generate Document" name="document-generation-subflow"/>
+            </when>
+            <otherwise>
+                <set-variable doc:name="Set No Document Flag" 
+                              variableName="documentGenerated" 
+                              value="#[false]"/>
+                <logger level="INFO" 
+                        doc:name="Log Document Skipped" 
+                        message='#["[" ++ vars.correlationId ++ "] Document generation skipped"]' 
+                        category="${logging.category}"/>
+            </otherwise>
+        </choice>
+        
+        <!-- Notification Delivery -->
+        <flow-ref doc:name="Deliver Notification" name="notification-delivery-subflow"/>
+        
+        <!-- Response Mapping -->
+        <flow-ref doc:name="Map Response" name="response-mapping-subflow"/>
+        
+        <!-- Set HTTP Status 201 for successful creation -->
+        <set-variable doc:name="Set HTTP Status 201" 
+                      variableName="httpStatus" 
+                      value="#[201]"/>
+        
+    </flow>
+
+</mule>

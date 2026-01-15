@@ -1,0 +1,9 @@
+{
+  "policyId": "POL-998877",
+  "recipient": {
+    "email": "customer@email.com",
+    "phone": "+15551234567"
+  },
+  "notificationType": "POLICY_BOUND",
+  "generateDocument": true
+}

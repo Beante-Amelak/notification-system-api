@@ -1,0 +1,8 @@
+{
+  "policyId": "POL-998877",
+  "recipient": {
+    "phone": "+15551234567"
+  },
+  "notificationType": "POLICY_BOUND",
+  "generateDocument": true
+}

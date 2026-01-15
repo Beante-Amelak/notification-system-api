@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mule xmlns="http://www.mulesoft.org/schema/mule/core"
+      xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xmlns:http="http://www.mulesoft.org/schema/mule/http"
+      xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+      xsi:schemaLocation="
+        http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+        http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+        http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+
+    <!-- =========================================================
+         Notification Delivery Subflow
+         Delivers notification via email/SMS with optional document
+         ========================================================= -->
+    <sub-flow name="notification-delivery-subflow" doc:name="Notification Delivery Subflow">
+        
+        <logger level="INFO" 
+                doc:name="Log Notification Delivery Start" 
+                message='#[output text/plain --- "[" ++ vars.correlationId ++ "] Starting notification delivery to: " ++ (vars.originalRequest.recipient.email as String)]' 
+                category="${logging.category}"/>
+        
+        <!-- Prepare notification request -->
+        <ee:transform doc:name="Transform - Notification Request">
+            <ee:message>
+                <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+    notificationType: vars.originalRequest.notificationType,
+    policyId: vars.originalRequest.policyId,
+    recipient: {
+        email: vars.originalRequest.recipient.email,
+        phone: vars.originalRequest.recipient.phone
+    },
+    channels: [
+        "EMAIL"
+    ] ++ (if (!isEmpty(vars.originalRequest.recipient.phone) and p('features.smsNotification.enabled') == 'true') ["SMS"] else []),
+    documentAttached: vars.documentGenerated default false,
+    documentId: if (vars.documentGenerated default false) vars.documentResponse.documentId else null,
+    correlationId: vars.correlationId,
+    sentAt: now() as String {format: "yyyy-MM-dd'T'HH:mm:ss'Z'"}
+}]]></ee:set-payload>
+            </ee:message>
+        </ee:transform>
+        
+        <!-- Call Notification Service -->
+        <try doc:name="Try Notification Service Call">
+            <http:request doc:name="Call Notification Service" 
+                          config-ref="HTTP_Request_Notification_Service_Config" 
+                          method="POST" 
+                          path="${secure::notificationService.basePath}/send">
+                <http:headers><![CDATA[#[{
+    "X-Correlation-ID": vars.correlationId
+}]]]></http:headers>
+            </http:request>
+            
+            <!-- Store notification response -->
+            <set-variable doc:name="Store Notification Response" 
+                          variableName="notificationResponse" 
+                          value="#[payload]"/>
+            
+            <logger level="INFO" 
+                    doc:name="Log Notification Delivery Success" 
+                    message='#["[" ++ vars.correlationId ++ "] Notification delivered successfully"]' 
+                    category="${logging.category}"/>
+            
+            <error-handler>
+                <on-error-propagate type="ANY" doc:name="On Error Propagate - Notification Service">
+                    <logger level="ERROR" 
+                            doc:name="Log Notification Service Error" 
+                            message='#["[" ++ vars.correlationId ++ "] Notification service error: " ++ (error.description default "Unknown")]' 
+                            category="${logging.category}"/>
+                    <raise-error doc:name="Raise Notification Service Error" 
+                                 type="APP:NOTIFICATION_SERVICE_ERROR" 
+                                 description="#['Failed to send notification: ' ++ (error.description default 'Unknown error')]"/>
+                </on-error-propagate>
+            </error-handler>
+        </try>
+        
+    </sub-flow>
+
+</mule>

@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Configuration status="WARN">
+
+    <!-- Lula Insurance - Notification & Document System API Log Configuration -->
+    
+    <Appenders>
+        <!-- JSON Structured Logging for Production -->
+        <RollingFile name="file" 
+                     fileName="${sys:mule.home}${sys:file.separator}logs${sys:file.separator}lula-notification-system-api.log"
+                     filePattern="${sys:mule.home}${sys:file.separator}logs${sys:file.separator}lula-notification-system-api-%d{yyyy-MM-dd}-%i.log">
+            <JSONLayout compact="true" eventEol="true" properties="true">
+                <KeyValuePair key="application" value="lula-notification-system-api"/>
+                <KeyValuePair key="environment" value="${sys:mule.env:-dev}"/>
+            </JSONLayout>
+            <Policies>
+                <SizeBasedTriggeringPolicy size="50 MB"/>
+                <TimeBasedTriggeringPolicy interval="1" modulate="true"/>
+            </Policies>
+            <DefaultRolloverStrategy max="30"/>
+        </RollingFile>
+        
+        <!-- Console Appender for Development -->
+        <Console name="Console" target="SYSTEM_OUT">
+            <PatternLayout pattern="%-5p %d{ISO8601} [%t] [correlationId: %X{correlationId}] %c{1}: %m%n"/>
+        </Console>
+    </Appenders>
+
+    <Loggers>
+        <!-- HTTP Service Loggers - Suppress verbose logging -->
+        <AsyncLogger name="org.mule.service.http" level="WARN"/>
+        <AsyncLogger name="org.mule.extension.http" level="WARN"/>
+        
+        <!-- APIKit Logger -->
+        <AsyncLogger name="org.mule.module.apikit" level="WARN"/>
+        
+        <!-- Application Logger - Lula Insurance -->
+        <AsyncLogger name="com.lulainsurance.notification" level="INFO"/>
+        
+        <!-- Mule Runtime Logger -->
+        <AsyncLogger name="org.mule.runtime.core.internal.processor.LoggerMessageProcessor" level="INFO"/>
+        
+        <!-- Secure Properties Logger - Suppress sensitive info -->
+        <AsyncLogger name="com.mulesoft.modules.secure.configuration.property" level="WARN"/>
+
+        <AsyncRoot level="INFO">
+            <AppenderRef ref="file"/>
+            <AppenderRef ref="Console"/>
+        </AsyncRoot>
+    </Loggers>
+
+</Configuration>

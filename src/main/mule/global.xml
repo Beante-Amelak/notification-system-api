@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mule xmlns="http://www.mulesoft.org/schema/mule/core"
+      xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xmlns:http="http://www.mulesoft.org/schema/mule/http"
+      xmlns:tls="http://www.mulesoft.org/schema/mule/tls"
+      xmlns:apikit="http://www.mulesoft.org/schema/mule/mule-apikit"
+      xmlns:secure-properties="http://www.mulesoft.org/schema/mule/secure-properties"
+      xmlns:os="http://www.mulesoft.org/schema/mule/os"
+      xsi:schemaLocation="
+        http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+        http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+        http://www.mulesoft.org/schema/mule/tls http://www.mulesoft.org/schema/mule/tls/current/mule-tls.xsd
+        http://www.mulesoft.org/schema/mule/mule-apikit http://www.mulesoft.org/schema/mule/mule-apikit/current/mule-apikit.xsd
+        http://www.mulesoft.org/schema/mule/secure-properties http://www.mulesoft.org/schema/mule/secure-properties/current/mule-secure-properties.xsd
+        http://www.mulesoft.org/schema/mule/os http://www.mulesoft.org/schema/mule/os/current/mule-os.xsd">
+
+    <!-- =========================================================
+         Global Properties - Bootstrap Configuration
+         ========================================================= -->
+    <global-property doc:name="Global Property - mule.env" name="mule.env" value="dev"/>
+    <global-property doc:name="Global Property - secure.key" name="secure.key" value="LulaInsurance16!"/>
+
+    <!-- =========================================================
+         Configuration Properties
+         ========================================================= -->
+    <configuration-properties doc:name="Application Properties" file="application.yaml"/>
+    
+    <secure-properties:config name="Secure_Properties_Config" 
+                               doc:name="Secure Properties Config" 
+                               file="application-secure.yaml" 
+                               key="${secure.key}">
+        <secure-properties:encrypt algorithm="AES" mode="CBC"/>
+    </secure-properties:config>
+
+    <!-- =========================================================
+         HTTP Listener Configuration
+         ========================================================= -->
+    <http:listener-config name="HTTP_Listener_Config" doc:name="HTTP Listener Config">
+        <http:listener-connection host="${http.listener.host}" port="${http.listener.port}"/>
+    </http:listener-config>
+
+    <!-- =========================================================
+         APIKit Configuration
+         ========================================================= -->
+    <apikit:config name="notification-system-api-config" 
+                   doc:name="APIKit Config" 
+                   api="api/notification-system-api.raml" 
+                   outboundHeadersMapName="outboundHeaders" 
+                   httpStatusVarName="httpStatus"/>
+
+    <!-- =========================================================
+         HTTP Request Configuration - Document Generation Service
+         ========================================================= -->
+    <http:request-config name="HTTP_Request_Document_Service_Config" 
+                         doc:name="HTTP Request Config - Document Service"
+                         responseTimeout="${timeouts.documentService}">
+        <http:request-connection protocol="HTTPS" 
+                                  host="${secure::documentService.host}" 
+                                  port="${secure::documentService.port}"/>
+        <http:default-headers>
+            <http:default-header key="X-API-Key" value="${secure::documentService.apiKey}"/>
+            <http:default-header key="Content-Type" value="application/json"/>
+        </http:default-headers>
+    </http:request-config>
+
+    <!-- =========================================================
+         HTTP Request Configuration - Notification Service
+         ========================================================= -->
+    <http:request-config name="HTTP_Request_Notification_Service_Config" 
+                         doc:name="HTTP Request Config - Notification Service"
+                         responseTimeout="${timeouts.notificationService}">
+        <http:request-connection protocol="HTTPS" 
+                                  host="${secure::notificationService.host}" 
+                                  port="${secure::notificationService.port}"/>
+        <http:default-headers>
+            <http:default-header key="X-API-Key" value="${secure::notificationService.apiKey}"/>
+            <http:default-header key="Content-Type" value="application/json"/>
+        </http:default-headers>
+    </http:request-config>
+
+    <!-- =========================================================
+         Object Store Configuration - Correlation Tracking
+         ========================================================= -->
+    <os:object-store name="Correlation_Object_Store" 
+                      doc:name="Correlation Object Store"
+                      persistent="false" 
+                      entryTtl="1" 
+                      entryTtlUnit="HOURS" 
+                      maxEntries="10000"/>
+
+</mule>

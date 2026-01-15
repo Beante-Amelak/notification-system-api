@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mule xmlns="http://www.mulesoft.org/schema/mule/core"
+      xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xmlns:http="http://www.mulesoft.org/schema/mule/http"
+      xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+      xsi:schemaLocation="
+        http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+        http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+        http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+
+    <!-- =========================================================
+         Document Generation Subflow
+         Calls external document generation service to create PDF
+         ========================================================= -->
+    <sub-flow name="document-generation-subflow" doc:name="Document Generation Subflow">
+        
+        <logger level="INFO" 
+                doc:name="Log Document Generation Start" 
+                message='#[output text/plain --- "[" ++ vars.correlationId ++ "] Starting document generation for policy: " ++ (vars.originalRequest.policyId as String)]' 
+                category="${logging.category}"/>
+        
+        <!-- Prepare document generation request -->
+        <ee:transform doc:name="Transform - Document Request">
+            <ee:message>
+                <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+    policyId: vars.originalRequest.policyId,
+    documentType: "POLICY_DOCUMENT",
+    format: "PDF",
+    recipientEmail: vars.originalRequest.recipient.email,
+    notificationType: vars.originalRequest.notificationType,
+    correlationId: vars.correlationId,
+    generatedAt: now() as String {format: "yyyy-MM-dd'T'HH:mm:ss'Z'"}
+}]]></ee:set-payload>
+            </ee:message>
+        </ee:transform>
+        
+        <!-- Call Document Generation Service -->
+        <try doc:name="Try Document Service Call">
+            <http:request doc:name="Call Document Service" 
+                          config-ref="HTTP_Request_Document_Service_Config" 
+                          method="POST" 
+                          path="${secure::documentService.basePath}/generate">
+                <http:headers><![CDATA[#[{
+    "X-Correlation-ID": vars.correlationId
+}]]]></http:headers>
+            </http:request>
+            
+            <!-- Store document response -->
+            <set-variable doc:name="Store Document Response" 
+                          variableName="documentResponse" 
+                          value="#[payload]"/>
+            <set-variable doc:name="Set Document Generated Flag" 
+                          variableName="documentGenerated" 
+                          value="#[true]"/>
+            
+            <logger level="INFO" 
+                    doc:name="Log Document Generation Success" 
+                    message='#["[" ++ vars.correlationId ++ "] Document generated successfully"]' 
+                    category="${logging.category}"/>
+            
+            <error-handler>
+                <on-error-propagate type="ANY" doc:name="On Error Propagate - Document Service">
+                    <logger level="ERROR" 
+                            doc:name="Log Document Service Error" 
+                            message='#["[" ++ vars.correlationId ++ "] Document service error: " ++ (error.description default "Unknown")]' 
+                            category="${logging.category}"/>
+                    <raise-error doc:name="Raise Document Service Error" 
+                                 type="APP:DOCUMENT_SERVICE_ERROR" 
+                                 description="#['Failed to generate document: ' ++ (error.description default 'Unknown error')]"/>
+                </on-error-propagate>
+            </error-handler>
+        </try>
+        
+    </sub-flow>
+
+</mule>

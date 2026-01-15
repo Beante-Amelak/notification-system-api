@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mule xmlns="http://www.mulesoft.org/schema/mule/core"
+      xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:schemaLocation="
+        http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd">
+
+    <!-- =========================================================
+         Request Validation Subflow
+         Validates required fields and notification type
+         ========================================================= -->
+    <sub-flow name="request-validation-subflow" doc:name="Request Validation Subflow">
+        
+        <logger level="DEBUG" 
+                doc:name="Log Validation Start" 
+                message='#["[" ++ vars.correlationId ++ "] Starting request validation"]' 
+                category="${logging.category}"/>
+        
+        <!-- Validate policyId is present and not empty -->
+        <choice doc:name="Validate Policy ID">
+            <when expression="#[isEmpty(vars.originalRequest.policyId)]">
+                <raise-error doc:name="Raise Validation Error - Policy ID" 
+                             type="APP:VALIDATION_ERROR" 
+                             description="policyId is required and cannot be empty"/>
+            </when>
+        </choice>
+        
+        <!-- Validate recipient object is present -->
+        <choice doc:name="Validate Recipient">
+            <when expression="#[vars.originalRequest.recipient == null]">
+                <raise-error doc:name="Raise Validation Error - Recipient" 
+                             type="APP:VALIDATION_ERROR" 
+                             description="recipient is required"/>
+            </when>
+        </choice>
+        
+        <!-- Validate recipient email is present and not empty -->
+        <choice doc:name="Validate Recipient Email">
+            <when expression="#[isEmpty(vars.originalRequest.recipient.email)]">
+                <raise-error doc:name="Raise Validation Error - Email" 
+                             type="APP:VALIDATION_ERROR" 
+                             description="recipient.email is required and cannot be empty"/>
+            </when>
+        </choice>
+        
+        <!-- Validate notificationType is present -->
+        <choice doc:name="Validate Notification Type Present">
+            <when expression="#[isEmpty(vars.originalRequest.notificationType)]">
+                <raise-error doc:name="Raise Validation Error - Notification Type" 
+                             type="APP:VALIDATION_ERROR" 
+                             description="notificationType is required"/>
+            </when>
+        </choice>
+        
+        <!-- Validate notificationType is valid enum value -->
+        <choice doc:name="Validate Notification Type Value">
+            <when expression="#[!(['POLICY_BOUND', 'PAYMENT_CONFIRMED'] contains vars.originalRequest.notificationType)]">
+                <raise-error doc:name="Raise Validation Error - Invalid Type" 
+                             type="APP:VALIDATION_ERROR" 
+                             description="notificationType must be one of: POLICY_BOUND, PAYMENT_CONFIRMED"/>
+            </when>
+        </choice>
+        
+        <logger level="DEBUG" 
+                doc:name="Log Validation Success" 
+                message='#["[" ++ vars.correlationId ++ "] Request validation successful"]' 
+                category="${logging.category}"/>
+        
+    </sub-flow>
+
+</mule>

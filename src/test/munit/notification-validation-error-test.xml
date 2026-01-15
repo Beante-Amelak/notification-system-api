@@ -1,0 +1,171 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mule xmlns="http://www.mulesoft.org/schema/mule/core"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xmlns:munit="http://www.mulesoft.org/schema/mule/munit"
+      xmlns:munit-tools="http://www.mulesoft.org/schema/mule/munit-tools"
+      xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+      xmlns:http="http://www.mulesoft.org/schema/mule/http"
+      xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+      xsi:schemaLocation="
+        http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+        http://www.mulesoft.org/schema/mule/munit http://www.mulesoft.org/schema/mule/munit/current/mule-munit.xsd
+        http://www.mulesoft.org/schema/mule/munit-tools http://www.mulesoft.org/schema/mule/munit-tools/current/mule-munit-tools.xsd
+        http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+        http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+
+    <munit:config name="notification-validation-error-test.xml"/>
+
+    <!-- =========================================================
+         Test: Validation Error - Missing Recipient Email
+         Verifies HTTP 400 when recipient.email is missing
+         ========================================================= -->
+    <munit:test name="validation-error-missing-email-test" 
+                description="Test validation error when recipient email is missing - HTTP 400"
+                expectedErrorType="APP:VALIDATION_ERROR">
+        
+        <!-- Execution -->
+        <munit:execution>
+            
+            <!-- Set input event with missing email -->
+            <munit:set-event doc:name="Set Request Missing Email">
+                <munit:payload value="#[MunitTools::getResourceAsString('sample-data/notification-request-missing-email.json')]" mediaType="application/json" encoding="UTF-8"/>
+                <munit:attributes value="#[{
+                    headers: {
+                        'client_id': p('secure::api.clientId'),
+                        'client_secret': p('secure::api.clientSecret'),
+                        'content-type': 'application/json'
+                    },
+                    method: 'POST',
+                    requestPath: '/api/v1/notifications'
+                }]"/>
+                <munit:variables>
+                    <munit:variable key="correlationId" value="#[uuid()]"/>
+                </munit:variables>
+            </munit:set-event>
+            
+            <!-- Call the implementation flow -->
+            <flow-ref doc:name="Call POST Notifications Flow" name="post:\notifications:application\json:notification-system-api-config"/>
+            
+        </munit:execution>
+        
+    </munit:test>
+
+    <!-- =========================================================
+         Test: Validation Error - Missing Policy ID
+         Verifies HTTP 400 when policyId is missing
+         ========================================================= -->
+    <munit:test name="validation-error-missing-policy-id-test" 
+                description="Test validation error when policyId is missing - HTTP 400"
+                expectedErrorType="APP:VALIDATION_ERROR">
+        
+        <!-- Execution -->
+        <munit:execution>
+            
+            <!-- Set input event with missing policyId -->
+            <munit:set-event doc:name="Set Request Missing Policy ID">
+                <munit:payload value='#[output application/json --- {
+                    "recipient": {
+                        "email": "customer@email.com"
+                    },
+                    "notificationType": "POLICY_BOUND",
+                    "generateDocument": true
+                }]' mediaType="application/json" encoding="UTF-8"/>
+                <munit:attributes value="#[{
+                    headers: {
+                        'client_id': p('secure::api.clientId'),
+                        'client_secret': p('secure::api.clientSecret'),
+                        'content-type': 'application/json'
+                    },
+                    method: 'POST',
+                    requestPath: '/api/v1/notifications'
+                }]"/>
+                <munit:variables>
+                    <munit:variable key="correlationId" value="#[uuid()]"/>
+                </munit:variables>
+            </munit:set-event>
+            
+            <!-- Call the implementation flow -->
+            <flow-ref doc:name="Call POST Notifications Flow" name="post:\notifications:application\json:notification-system-api-config"/>
+            
+        </munit:execution>
+        
+    </munit:test>
+
+    <!-- =========================================================
+         Test: Validation Error - Invalid Notification Type
+         Verifies HTTP 400 when notificationType is invalid
+         ========================================================= -->
+    <munit:test name="validation-error-invalid-notification-type-test" 
+                description="Test validation error when notificationType is invalid - HTTP 400"
+                expectedErrorType="APP:VALIDATION_ERROR">
+        
+        <!-- Execution -->
+        <munit:execution>
+            
+            <!-- Set input event with invalid notificationType -->
+            <munit:set-event doc:name="Set Request Invalid Notification Type">
+                <munit:payload value='#[output application/json --- {
+                    "policyId": "POL-998877",
+                    "recipient": {
+                        "email": "customer@email.com"
+                    },
+                    "notificationType": "INVALID_TYPE",
+                    "generateDocument": true
+                }]' mediaType="application/json" encoding="UTF-8"/>
+                <munit:attributes value="#[{
+                    headers: {
+                        'client_id': p('secure::api.clientId'),
+                        'client_secret': p('secure::api.clientSecret'),
+                        'content-type': 'application/json'
+                    },
+                    method: 'POST',
+                    requestPath: '/api/v1/notifications'
+                }]"/>
+                <munit:variables>
+                    <munit:variable key="correlationId" value="#[uuid()]"/>
+                </munit:variables>
+            </munit:set-event>
+            
+            <!-- Call the implementation flow -->
+            <flow-ref doc:name="Call POST Notifications Flow" name="post:\notifications:application\json:notification-system-api-config"/>
+            
+        </munit:execution>
+        
+    </munit:test>
+
+    <!-- =========================================================
+         Test: Authentication Error - Invalid Client Credentials
+         Verifies HTTP 401 when client credentials are invalid
+         ========================================================= -->
+    <munit:test name="authentication-error-invalid-credentials-test" 
+                description="Test authentication error when client credentials are invalid - HTTP 401"
+                expectedErrorType="APP:UNAUTHORIZED">
+        
+        <!-- Execution -->
+        <munit:execution>
+            
+            <!-- Set input event with invalid credentials -->
+            <munit:set-event doc:name="Set Request Invalid Credentials">
+                <munit:payload value="#[MunitTools::getResourceAsString('sample-data/notification-request.json')]" mediaType="application/json" encoding="UTF-8"/>
+                <munit:attributes value="#[{
+                    headers: {
+                        'client_id': 'invalid_client_id',
+                        'client_secret': 'invalid_client_secret',
+                        'content-type': 'application/json'
+                    },
+                    method: 'POST',
+                    requestPath: '/api/v1/notifications'
+                }]"/>
+                <munit:variables>
+                    <munit:variable key="correlationId" value="#[uuid()]"/>
+                </munit:variables>
+            </munit:set-event>
+            
+            <!-- Call the implementation flow -->
+            <flow-ref doc:name="Call POST Notifications Flow" name="post:\notifications:application\json:notification-system-api-config"/>
+            
+        </munit:execution>
+        
+    </munit:test>
+
+</mule>
